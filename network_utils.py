@@ -112,3 +112,30 @@ def get_top_papers_by_centrality(titleabs: pd.DataFrame, ranking: dict, centrali
 
     return top_papers
     
+def evaluate_communities(G, communities: list[set], node_category_mapping: pd.DataFrame) -> tuple[float, pd.DataFrame]:
+    modularity = nx.community.modularity(G, communities)
+    communities_categories = []
+    for community in communities:
+        categories = {}
+        for node in community:
+            category = node_category_mapping.loc[node]["arxiv category"]
+            if category in categories:
+                categories[category] += 1
+            else:
+                categories[category] = 1
+        max_count = 0
+        max_category = ""
+        for category, count in categories.items():
+            if count > max_count:
+                max_category = category
+                max_count = count
+        
+        
+        percentage_for_max_category = max_count / len(community)
+        communities_categories.append({"max category": max_category,
+                                        "percentage": percentage_for_max_category})
+
+    df = pd.DataFrame(communities_categories)
+    df = df.sort_values(by="percentage", ascending=False)
+    return (modularity, df)
+    
