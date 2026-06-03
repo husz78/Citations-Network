@@ -6,6 +6,7 @@ import collections
 
 
 def describe_network_directed(G: nx.DiGraph):
+    """Calculate and return key network metrics for a directed graph."""
     # Calculate approximate average shortest path lengths
     G_undirected = G.to_undirected()
 
@@ -44,6 +45,7 @@ def describe_network_directed(G: nx.DiGraph):
 
 
 def describe_network_undirected(G: nx.Graph):
+    """Calculate and return key network metrics for an undirected graph."""
     
     # Get Largest Connected Component
     largest_cc = max(nx.connected_components(G), key=len)
@@ -75,10 +77,10 @@ def describe_network_undirected(G: nx.Graph):
 
 
 def plot_degree_distribution(graphs, labels):
+    """Plot the degree distribution of one or more graphs on a log-log scale."""
     plt.figure(figsize=(10, 6))
     
     for G_plot, label in zip(graphs, labels):
-        # Get degrees
         degrees = [d for n, d in G_plot.degree()]
         
         # Count frequencies
@@ -94,3 +96,19 @@ def plot_degree_distribution(graphs, labels):
     plt.legend()
     plt.grid(True, which="both", ls="-", alpha=0.2)
     plt.show()
+
+
+def get_top_papers_by_centrality(titleabs: pd.DataFrame, ranking: dict, centrality_name: str, node_mapping: pd.DataFrame, top=20):
+    """Get the top papers sorted by their centrality scores."""
+    ranks = list(ranking.items())
+    df = pd.DataFrame(ranks, columns=["node idx", f"{centrality_name}"])
+    df = df.sort_values(by=f"{centrality_name}", ascending=False)
+    df = df.merge(node_mapping, on="node idx")
+
+    top_paper_ids = df.head(top)["paper id"].astype(int).tolist()
+
+    existing_ids = [pid for pid in top_paper_ids if pid in titleabs.index]
+    top_papers = titleabs.loc[existing_ids]
+
+    return top_papers
+    
