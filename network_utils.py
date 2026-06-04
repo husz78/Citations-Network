@@ -115,7 +115,9 @@ def get_top_papers_by_centrality(titleabs: pd.DataFrame, ranking: dict, centrali
 def evaluate_communities(G, communities: list[set], node_category_mapping: pd.DataFrame) -> tuple[float, pd.DataFrame]:
     modularity = nx.community.modularity(G, communities)
     communities_categories = []
+    communities_sizes_sum = 0
     for community in communities:
+        communities_sizes_sum += len(community)
         categories = {}
         for node in community:
             category = node_category_mapping.loc[node]["arxiv category"]
@@ -137,5 +139,6 @@ def evaluate_communities(G, communities: list[set], node_category_mapping: pd.Da
 
     df = pd.DataFrame(communities_categories)
     df = df.sort_values(by="percentage", ascending=False)
-    return (modularity, df)
+    avg_community_size = communities_sizes_sum / len(communities)
+    return (modularity, avg_community_size, df)
     
