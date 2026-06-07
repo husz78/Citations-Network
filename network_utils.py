@@ -112,26 +112,31 @@ def get_top_papers_by_centrality(titleabs: pd.DataFrame, ranking: dict, centrali
 
     return top_papers
     
-def evaluate_communities(G, communities: list[set], node_category_mapping: pd.DataFrame) -> tuple[float, pd.DataFrame]:
+def evaluate_communities(G, communities: list[set], node_category_mapping: pd.DataFrame) -> tuple[float, float, float, pd.DataFrame]:
     modularity = nx.community.modularity(G, communities)
     communities_categories = []
+    node_to_community = {}
     communities_sizes_sum = 0
-    for community in communities:
+    
+    # Create a fast dictionary lookup mapping node index to its arxiv category
+    category_map = dict(zip(node_category_mapping["node idx"], node_category_mapping["arxiv category"]))
+    
+    for i, community in enumerate(communities):
         communities_sizes_sum += len(community)
         categories = {}
         for node in community:
-            category = node_category_mapping.loc[node]["arxiv category"]
+            category = category_map.get(node)
             if category in categories:
                 categories[category] += 1
             else:
                 categories[category] = 1
+            node_to_community[node] = i
         max_count = 0
         max_category = ""
         for category, count in categories.items():
             if count > max_count:
                 max_category = category
                 max_count = count
-        
         
         percentage_for_max_category = max_count / len(community)
         communities_categories.append({"max category": max_category,
@@ -140,5 +145,13 @@ def evaluate_communities(G, communities: list[set], node_category_mapping: pd.Da
     df = pd.DataFrame(communities_categories)
     df = df.sort_values(by="percentage", ascending=False)
     avg_community_size = communities_sizes_sum / len(communities)
-    return (modularity, avg_community_size, df)
-    
+
+    sampled_nodes = random.sample(list(G.nodes), min(500, len(G.nodes)))
+    accuracy = 0
+    for node in sampled_nodes:
+        community = node_to_community[node]
+        if df.loc[community, "max category"] == category_map.get(node):
+            accuracy += 1
+    accuracy /= len(sampled_nodes) if sampled_nodes else 1
+
+    return (modularity, avg_community_size, accuracy, df)
