@@ -6,3 +6,22 @@ __pycache__/
 .ipynb_checkpoints/
 dataset/
 titleabs.tsv
+.vscode/
+
+# LaTeX auxiliary files
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.synctex.gz
+*.pdf
+*.fdb_latexmk
+*.fls
+
+# Generated summary files
+*_summary.txt
+
+# Auxiliary folders
+figures/

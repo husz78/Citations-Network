@@ -1,0 +1,370 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{cite}
+\usepackage{float}
+\usepackage{microtype}
+
+\geometry{a4paper, margin=1in}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={arXiv Citation Network Analysis},
+    pdfpagemode=FullScreen,
+}
+
+\begin{document}
+
+\title{\textbf{\Large Structural and Topological Analysis of the arXiv Computer Science Citation Network}}
+\author{Hubert Szymański}
+\date{\today}
+\maketitle
+
+\begin{abstract}
+This report presents a network analysis of the arXiv Computer Science citation database. We investigate
+both a filtered temporal subgraph (papers published between 2000 and 2012) and the complete arXiv citation
+graph (1993--2020). First, we characterize the global network properties and compare them with three
+classical random network models: Erd\H{o}s-R\'{e}nyi, Barab\'{a}si-Albert, and Watts-Strogatz,
+demonstrating that the citation graph exhibits scale-free degree distributions and strong clustering.
+Second, we apply centrality measures (PageRank, In-Degree, and Betweenness Centrality) to identify
+influential publications and discuss their academic context, revealing a heavy concentration of
+highly-cited papers in Information Theory during the 2000s and a massive shift towards Deep Learning in
+the 2010s. Third, we evaluate four community detection algorithms (Louvain, Leiden, Walktrap, and Label
+Propagation) based on modularity and purity. We show that citation patterns alone can recover thematic
+research fields with high classification accuracy (easily over 50\% by majority voting), proving that network
+topology correlates strongly with academic subfields.
+\end{abstract}
+
+\section{Introduction}
+This report was prepared for a university course project to analyze the structural properties of citation networks using the arXiv Computer Science database. In these networks, academic publications are represented as nodes, while citation links represent directed edges from the citing paper to the cited paper. The structure of citation networks is inherently temporal; while they are conceptually close to Directed Acyclic Graphs (DAGs) due to the unidirectional flow of time, empirical citation networks—especially preprint repositories like arXiv—are not strictly acyclic, displaying cyclical dependencies due to preprint updates and simultaneous co-publications.
+
+The objective of this project is to perform a detailed structural analysis of the arXiv Computer Science (CS) citation database. We formulate several key research questions:
+\begin{enumerate}
+    \item What are the fundamental structural characteristics of the citation network, and how do they compare to standard random graph models?
+    \item Which papers are identified as the most prominent or bridging nodes in the network, and how do different centrality measures correlate?
+    \item Does the topological structure of citation links capture thematic fields? Can community detection algorithms successfully reconstruct the classification of papers into arXiv computer science subfields without access to paper text or metadata?
+\end{enumerate}
+
+To address these questions, we analyze two variants of the network: a filtered subgraph
+restricted to the years 2000--2012 (designed to analyze a specific decade of dense research
+and comparison with random models and used because some computations for the whole network would be too complex
+for available hardware) and the entire, unrestricted citation graph spanning
+1993--2020 for some research tasks. We apply centrality measures to identify influential nodes and use modularity, community size, and category purity to evaluate community detection algorithms.
+
+\section{Dataset and Network Preprocessing}
+We utilize the Open Graph Benchmark (OGB) \texttt{ogbn-arxiv} dataset, which represents a citation network between all computer science papers registered on the arXiv repository. The dataset contains nodes corresponding to arXiv papers and directed edges representing citation links. Nodes are annotated with metadata, including the year of publication and the paper's subject classification (40 distinct categories representing arXiv CS subfields, such as Information Theory, Machine Learning, Cryptography, and Networking).
+
+\subsection{Network Scope and Statistics}
+We analyze two scopes of the citation graph:
+\begin{enumerate}
+    \item \textbf{Filtered Graph (2000--2012)}: A subset of papers published between 2000 and 2012 (inclusive). Single-node weakly connected components (isolated nodes) are removed to focus on the active citation structure. This subset consists of $N = 20,515$ nodes and $E = 45,697$ directed edges ($E = 44,119$ undirected edges after merging reciprocal links).
+    \item \textbf{Full Graph (1993--2020)}: The entire citation database containing $N = 169,343$ nodes and $E = 1,166,243$ citation links.
+\end{enumerate}
+
+\subsection{Data Construction and Reciprocity}
+An edge $(u, v)$ is constructed if paper $u$ cites paper $v$. Because citations can normally only point to older publications, we expect the graph to be almost strictly chronological. We map the publication years of nodes on source and target edges to evaluate this temporal consistency. In the full dataset, we find that approximately 98.2\% of edges satisfy $\text{year}(u) \ge \text{year}(v)$ (the citing paper is published in the same year or later than the cited paper).
+
+Interestingly, a small fraction of edges (1.8\%) run in the opposite direction. Furthermore, we analyze \textit{reciprocal edges}, which are pairs of papers that cite each other, representing a bidirected edge in the graph. In the 2000--2012 filtered graph, we find exactly 3,156 reciprocal edges (~6.9\% of all directed edges). Reciprocal edges can arise for several reasons:
+\begin{itemize}
+    \item \textbf{Simultaneous publication}: Authors collaborating on related papers or publishing in the same conference volume may cite each other's work simultaneously.
+    \item \textbf{Journal revisions}: Authors updating preprints on arXiv over time may add citations to papers published during the peer-review process.
+    \item \textbf{Preprint updates}: Papers published on arXiv are frequently updated, allowing citations to flow in both directions after revision.
+\end{itemize}
+Examples of reciprocal links include citations between papers published in different years (e.g., Year 2012 $\leftrightarrow$ Year 2003) as well as papers published in the same year.
+
+\section{Comparative Analysis with Random Network Models}
+To understand the topological structure of the citation network, we perform a comparative analysis with three standard random graph models. Using the undirected representation of the filtered graph (2000--2012) as a baseline, we generate:
+\begin{itemize}
+    \item \textbf{Erd\H{o}s-R\'{e}nyi (ER) Model}: A completely random graph with the same number of nodes $N$ and edges $E$ as the real citation network.
+    \item \textbf{Barab\'{a}si-Albert (BA) Model}: A scale-free network generated via preferential attachment, using the same number of nodes and average degree.
+    \item \textbf{Watts-Strogatz (WS) Model}: A small-world network generated by rewiring a regular ring lattice (rewiring probability $p=0.1$) to match the average degree.
+\end{itemize}
+
+\subsection{Degree Distribution}
+The degree distribution is a fundamental property of a network, describing the probability $P(k)$ that a randomly selected node has degree $k$. Figure 1 shows the degree distribution of the arXiv citation network (undirected) compared to the ER, BA, and WS random networks on a log-log scale.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{figures/fig_degree_dist_filtered.png}
+        \caption{Filtered Graph (2000--2012)}
+        \label{fig:degree_filtered}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{figures/fig_degree_dist_full.png}
+        \caption{Full Graph (1993--2020)}
+        \label{fig:degree_full}
+    \end{subfigure}
+    \caption{Degree distribution comparison on a log-log scale for the arXiv citation networks and their random counterparts.}
+    \label{fig:degree_distributions}
+\end{figure}
+
+The degree distribution of the arXiv citation graph does not follow a strict power law, though it is quite close. On the log-log plot (Figure 1), the curve is flatter for smaller degrees before dropping off steeply in the tail. This means there are fewer papers with very low citations than a pure power law would predict. However, it still exhibits a heavy-tail behavior where a small number of papers have a huge number of citations (hubs). While the Barab\'{a}si-Albert model generates a straight line on the plot, it still captures these highly-cited hubs far better than the Erd\H{o}s-R\'{e}nyi and Watts-Strogatz models, which have no hubs at all.
+
+\subsection{Global Network Properties}
+Table 1 presents the key structural metrics computed for the filtered citation network and the three generated random models.
+
+\begin{table}[H]
+\centering
+\caption{Comparative analysis of structural metrics between the undirected arXiv citation network (filtered 2000--2012) and random network models.}
+\label{tab:network_metrics}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Metric} & \textbf{arXiv Citation} & \textbf{Erd\H{o}s-R\'{e}nyi} & \textbf{Barab\'{a}si-Albert} & \textbf{Watts-Strogatz} \\
+\midrule
+Nodes ($N$) & 20,515 & 20,515 & 20,515 & 20,515 \\
+Edges ($E$) & 44,119 & 44,119 & 41,026 & 41,030 \\
+Average Degree $\langle k \rangle$ & 4.3011 & 4.3011 & 3.9996 & 4.0000 \\
+Connected Components & 965 & 294 & 1 & 1 \\
+Avg. Clustering Coeff. ($C$) & 0.2471 & 0.0002 & 0.0036 & 0.3722 \\
+LCC Size ($N_{LCC}$) & 16,874 & 20,217 & 20,515 & 20,515 \\
+Avg. Shortest Path ($L$) & 10.0996 & 6.9895 & 5.2436 & 13.5309 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+The empirical analysis reveals distinct topological characteristics:
+\begin{itemize}
+    \item \textbf{Average Clustering Coefficient}: The citation network displays a high average clustering coefficient ($C = 0.2471$), which is several orders of magnitude larger than the ER random model ($C = 0.0002$) and the BA scale-free model ($C = 0.0036$). This indicates a strong transitivity where papers that cite a common set of papers are highly likely to cite each other, reflecting localized academic communities or subfields.
+    \item \textbf{Average Shortest Path Length}: The average shortest path length within the LCC ($L = 10.0996$) is larger than in the ER ($L = 6.9895$) and BA ($L = 5.2436$) models, but significantly smaller than in the WS lattice-like model ($L = 13.5309$). This highlights a small-world effect mediated by high modularity, where short path lengths are preserved by "bridge" papers despite the highly clustered structure.
+    \item \textbf{Connectivity}: The citation graph is highly fragmented, containing 965 connected components, with the largest connected component (LCC) containing 82.2\% of all nodes (16,874). ER has fewer components, while BA and WS are completely connected by construction.
+\end{itemize}
+
+Figures \ref{fig:clustering_comparison} and \ref{fig:shortest_path_comparison} visually summarize the clustering and shortest path metrics across the four networks.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{figures/fig_clustering_filtered.png}
+        \caption{Average Clustering Coefficient}
+        \label{fig:clustering_comparison}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{figures/fig_shortest_path_filtered.png}
+        \caption{Average Shortest Path (LCC)}
+        \label{fig:shortest_path_comparison}
+    \end{subfigure}
+    \caption{Clustering coefficient and shortest path length comparisons for the filtered arXiv citation network and random models.}
+    \label{fig:structural_comparisons}
+\end{figure}
+
+\section{Centrality Measures}
+Centrality measures quantify the importance of nodes based on their topological position. We compute three distinct centrality indices:
+\begin{enumerate}
+    \item \textbf{In-Degree Centrality}: The fraction of nodes pointing to a given node. It selects the most cited papers.
+    \item \textbf{PageRank Centrality}: A stationary probability distribution of a random walk. It measures popularity recursively (i.e., a citation from a highly-cited paper is worth more).
+    \item \textbf{Betweenness Centrality}: The fraction of shortest paths passing through a node. It identifies nodes that act as "bridges" between different communities. We approximate this for the networks using Brandes' algorithm with a sample of $k$ source nodes ($k=1000$ for both graphs).
+\end{enumerate}
+
+\subsection{Top Publications in the Filtered Network (2000--2012)}
+Table 2 presents the top papers identified by the three centrality measures in the filtered subgraph.
+
+\begin{table}[H]
+\centering
+\caption{Top 5 papers by centrality measures in the filtered citation network (2000--2012).}
+\label{tab:centrality_filtered}
+\begin{tabular}{llcp{8.5cm}}
+\toprule
+\textbf{Measure} & \textbf{Score} & \textbf{Category} & \textbf{Paper Title} \\
+\midrule
+\textbf{PageRank} 
+ & 0.002990 & IT & Wireless network information flow \\
+ & 0.002933 & NA & Subspace pursuit for compressive sensing signal reconstruction \\
+ & 0.002854 & AI & Nonmonotonic reasoning preferential models and cumulative logics \\
+ & 0.002853 & IT & Bayesian compressive sensing via belief propagation \\
+ & 0.002838 & IT & Gaussian interference channel capacity to within one bit \\
+\midrule
+\textbf{In-Degree} 
+ & 0.009847 & IT & Gaussian interference channel capacity to within one bit \\
+ & 0.004826 & IT & Wireless network information flow a deterministic approach \\
+ & 0.004777 & IT & Coding for errors and erasures in random network coding \\
+ & 0.004777 & IT & Exact matrix completion via convex optimization \\
+ & 0.004582 & IT & Capacity bounds for the gaussian interference channel \\
+\midrule
+\textbf{Betweenness} 
+ & 0.001997 & IT & Compute and forward harnessing interference through structured codes \\
+ & 0.001792 & IT & Ergodic interference alignment \\
+ & 0.001608 & DS & A learning theory approach to non interactive database privacy \\
+ & 0.001585 & LG & Guaranteed rank minimization via singular value projection \\
+ & 0.001579 & LG & What can we learn privately \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Top Publications in the Full Network (1993--2020)}
+Table 3 presents the top papers identified by the three centrality measures in the full citation network.
+
+\begin{table}[H]
+\centering
+\caption{Top 5 papers by centrality measures in the full citation network (1993--2020).}
+\label{tab:centrality_full}
+\begin{tabular}{llcp{8.5cm}}
+\toprule
+\textbf{Measure} & \textbf{Score} & \textbf{Category} & \textbf{Paper Title} \\
+\midrule
+\textbf{PageRank} 
+ & 0.009314 & NE & Improving neural networks by preventing co adaptation of feature detectors \\
+ & 0.008238 & NE & Deep big simple neural nets for handwritten digit recognition \\
+ & 0.006537 & CV & Rich feature hierarchies for accurate object detection and semantic segmentation \\
+ & 0.005240 & CV & Decaf a deep convolutional activation feature for generic visual recognition \\
+ & 0.004133 & LG & Adam a method for stochastic optimization \\
+\midrule
+\textbf{In-Degree} 
+ & 0.077683 & LG & Adam a method for stochastic optimization \\
+ & 0.073975 & CV & Deep residual learning for image recognition \\
+ & 0.054588 & CV & Very deep convolutional networks for large scale image recognition \\
+ & 0.028221 & LG & Batch normalization accelerating deep network training by reducing internal covariate shift \\
+ & 0.025026 & CV & Imagenet large scale visual recognition challenge \\
+\midrule
+\textbf{Betweenness} 
+ & 0.035596 & LG & Measuring the effects of data parallelism on neural network training \\
+ & 0.034172 & LG & Don't use large mini batches use local sgd \\
+ & 0.033697 & LG & Advances and open problems in federated learning \\
+ & 0.027420 & IT & Message passing de quantization with applications to compressed sensing \\
+ & 0.025713 & IT & Rigorous dynamics of expectation propagation based signal recovery from unitarily invariant measurements \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Discussion: The Paradigm Shift from Information Theory to Deep Learning}
+Comparing the top publications in Tables 2 and 3 reveals a significant historical paradigm shift in the Computer Science literature:
+\begin{itemize}
+    \item \textbf{The Information Theory and Wireless Communication Era (2000--2012)}: In the filtered network, Information Theory (\texttt{arxiv cs IT}) dominates all three metrics, accounting for over 70\% of the top papers (as shown in Figure \ref{fig:pie_pr_filtered}). Top papers focus heavily on wireless network information flow, compressive sensing, network coding, and the capacity of Gaussian interference channels. This reflects the intense research activity in solving physical layer communication problems during the transition to 3G, 4G (LTE), and modern Wi-Fi protocols.
+    \item \textbf{The Deep Learning Revolution (1993--2020)}: In the full graph, the focus shifts entirely to Machine Learning (\texttt{arxiv cs LG}), Computer Vision (\texttt{arxiv cs CV}), and Neural Networks (\texttt{arxiv cs NE}), representing 100\% of the top PageRank and In-Degree nodes. Breakthrough deep learning papers, such as Hinton's Dropout paper (improving neural networks by preventing co-adaptation), ResNet (deep residual learning), VGG (very deep convolutional networks), Batch Normalization, and the Adam optimizer are the dominant hubs. This tracks the dramatic rise of Deep Learning as the defining paradigm of modern CS since 2012.
+    \item \textbf{Bridges in the Network (Betweenness)}: In both networks, Betweenness Centrality highlights distinct nodes compared to PageRank and In-degree. PageRank and In-degree identify highly concentrated hubs within a single massive community (e.g., Information Theory or Machine Learning). In contrast, Betweenness Centrality identifies papers that act as bridges. In the full graph, these are papers addressing distributed learning (data parallelism, local SGD, federated learning) which link computer systems and machine learning, and expectation propagation papers which bridge information theory, signal processing, and machine learning.
+\end{itemize}
+
+Figures \ref{fig:pie_pr_filtered} and \ref{fig:pie_bt_filtered} compare the subfield distributions in the filtered network, while Figures \ref{fig:pie_pr_full} and \ref{fig:pie_bt_full} show the distributions for the full network.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{figures/fig_pagerank_pie_filtered.png}
+        \caption{PageRank Top 20}
+        \label{fig:pie_pr_filtered}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{figures/fig_betweenness_pie_filtered.png}
+        \caption{Betweenness Top 20}
+        \label{fig:pie_bt_filtered}
+    \end{subfigure}
+    \caption{Distribution of arXiv categories in the top 20 papers for the filtered citation network (2000--2012).}
+    \label{fig:pie_charts_filtered}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{figures/fig_pagerank_pie_full.png}
+        \caption{PageRank Top 20}
+        \label{fig:pie_pr_full}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{figures/fig_betweenness_pie_full.png}
+        \caption{Betweenness Top 20}
+        \label{fig:pie_bt_full}
+    \end{subfigure}
+    \caption{Distribution of arXiv categories in the top 20 papers for the full citation network (1993--2020).}
+    \label{fig:pie_charts_full}
+\end{figure}
+
+Furthermore, Figure \ref{fig:correlation} plots the correlation between PageRank and Betweenness Centrality scores for the union of the top 10 papers. While some hubs (such as Wireless network information flow) score high on PageRank, other bridge papers (such as Compute and forward) show high Betweenness Centrality despite relatively lower PageRank, confirming that these measures capture distinct notions of node importance.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{figures/fig_pr_bt_correlation.png}
+    \caption{Correlation between PageRank and Betweenness Centrality scores (2000-2012) for the union of the top 10 papers in the filtered network.}
+    \label{fig:correlation}
+\end{figure}
+
+\section{Community Detection}
+Community detection algorithms partition a network into groups of nodes (communities) that are densely connected internally but sparsely connected externally. We evaluate four popular algorithms on the largest connected component of the filtered network:
+\begin{enumerate}
+    \item \textbf{Louvain Algorithm}: Iteratively optimizes modularity using a hierarchical approach.
+    \item \textbf{Leiden Algorithm}: An improved version of Louvain that ensures communities are connected and addresses Louvain's internal node trapping issues.
+    \item \textbf{Walktrap Algorithm}: Utilizes short random walks to capture structural distance and group nodes.
+    \item \textbf{Label Propagation}: A fast algorithm where nodes iteratively adopt the majority label of their neighbors.
+\end{enumerate}
+
+\subsection{Evaluation Metrics}
+We evaluate the detected communities using three metrics:
+\begin{itemize}
+    \item \textbf{Modularity ($Q$)}: Measures the fraction of edges falling within communities minus the expected fraction if edges were distributed randomly. $Q > 0.3$ indicates a strong community structure.
+    \item \textbf{Average Community Size}: The average number of papers assigned to each community.
+    \item \textbf{Community Purity}: The average fraction of the dominant arXiv category within each community. It measures the thematic homogeneity of the structural partitions.
+    \item \textbf{Classification Accuracy}: We assign each community to its majority arXiv category. The classification accuracy is the fraction of papers whose actual arXiv category matches their community's assigned category, evaluated on a random sample of 500 nodes.
+\end{itemize}
+
+\subsection{Community Detection Results}
+Table 4 summarizes the results of the four community detection algorithms.
+
+\begin{table}[H]
+\centering
+\caption{Comparison of community detection algorithms on the largest connected component of the filtered network.}
+\label{tab:community_detection}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Algorithm} & \textbf{Modularity ($Q$)} & \textbf{Average Size} & \textbf{Community Purity} & \textbf{Classification Accuracy} \\
+\midrule
+Louvain & 0.8932 & 241.1 & 0.5669 & 58.20\% \\
+Leiden & 0.8945 & 210.9 & 0.5972 & 58.20\% \\
+Walktrap & 0.8198 & 10.7 & 0.7712 & 74.00\% \\
+Label Propagation & 0.7471 & 8.4 & 0.7795 & 80.60\% \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+The community detection results show a clear trade-off between modularity and granularity:
+\begin{itemize}
+    \item \textbf{Modularity Optimization (Louvain \& Leiden)}: Both algorithms achieve extremely high modularity scores ($Q \approx 0.89$), partitioning the network into a relatively small number of large, well-defined communities (average size of 210--241 nodes). These large communities correspond to broad, interconnected fields of research. Consequently, their purity is moderate ($\approx 0.57$--0.60) and classification accuracy is around 58.20\%, as they group related but distinct subfields together.
+    \item \textbf{Local Structural Partitioning (Walktrap \& Label Propagation)}: Walktrap and Label Propagation partition the network into much smaller communities (average size of 8--11 nodes). While this results in lower modularity ($Q \approx 0.74$--0.82), these smaller communities are highly homogenous, achieving high category purity ($\approx 0.77$--0.78).
+    \item \textbf{Thematic Reconstruction (Accuracy)}: By assigning each community to its majority category, Label Propagation achieves a classification accuracy of \textbf{80.60\%} on sampled nodes, and Walktrap achieves \textbf{74.00\%}. This demonstrates that the citation topology is highly aligned with thematic subfields. Without any text or metadata analysis, we can correctly predict a paper's category for 4 out of 5 papers based purely on local citation links.
+\end{itemize}
+
+Figures \ref{fig:comm_metrics} and \ref{fig:comm_accuracy} summarize these results.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.65\textwidth}
+        \includegraphics[width=\textwidth]{figures/fig_comm_detection_metrics.png}
+        \caption{Modularity, Average Size, and Purity Comparisons}
+        \label{fig:comm_metrics}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.33\textwidth}
+        \includegraphics[width=\textwidth]{figures/fig_comm_accuracy.png}
+        \caption{Classification Accuracy}
+        \label{fig:comm_accuracy}
+    \end{subfigure}
+    \caption{Performance and accuracy comparison of the four community detection algorithms.}
+    \label{fig:community_detection_figures}
+\end{figure}
+
+\section{Conclusions}
+In this project, we performed a thorough topological and structural analysis of the arXiv Computer Science citation network. Our main findings are:
+\begin{enumerate}
+    \item The citation network is scale-free and highly clustered, closely resembling a Barab\'{a}si-Albert model in degree distribution, but displaying strong social transitivity and community structure that random models fail to capture.
+    \item Centrality measures reveal a dramatic paradigm shift in computer science, transitioning from a focus on Information Theory and wireless communications in the 2000s to a complete dominance of Machine Learning and Deep Learning in the 2010s. Furthermore, betweenness centrality successfully isolates bridge papers connecting distinct subfields.
+    \item Topology maps tightly to semantic subfields. Local partition algorithms like Label Propagation and Walktrap achieve
+    over 70\% accuracy in reconstructing the arXiv thematic categories from citation links alone.
+\end{enumerate}
+
+These results underline the power of network science in mapping the landscape of scientific knowledge, tracking historical shifts in research paradigms, and identifying key bridging research purely from relational metadata.
+
+\end{document}
